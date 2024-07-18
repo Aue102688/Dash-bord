@@ -1,14 +1,12 @@
 import dash
-from dash import Dash, html, dcc, callback, Output, Input
 from dash import dcc, html
-import plotly.express as px
+from dash.dependencies import Input, Output
 import pandas as pd
+import plotly.express as px
+import dash_bootstrap_components as dbc
 
-# Data
-data = pd.read_csv('stud.csv')
-
-# Convert to DataFrame
-df = pd.DataFrame(data)
+# Load the data
+df = pd.read_csv('stud.csv')
 
 # Dictionary for province coordinates (latitude, longitude)
 province_coords = {
@@ -95,41 +93,95 @@ province_coords = {
 df['latitude'] = df['schools_province'].apply(lambda x: province_coords[x][0])
 df['longitude'] = df['schools_province'].apply(lambda x: province_coords[x][1])
 
+
 # Create the map
-fig = px.scatter_mapbox(
-    df,
-    lat="latitude",
-    lon="longitude",
-    hover_name="schools_province",
-    hover_data={"totalstd": True, "totalmale": True, "totalfemale": True, "latitude": False, "longitude": False},
-    size="totalstd",
-    color="totalstd",
-    color_continuous_scale=px.colors.cyclical.IceFire,
-    size_max=15,
-    zoom=5,
-    mapbox_style="carto-positron"
-)
+def create_map(province=None):
+    if province:
+        df_filtered = df[df['schools_province'] == province]
+    else:
+        df_filtered = df
 
-#select
-dfs = df.schools_province.unique()
-
-#graph
-# row_index = df.index[dfs].tolist()
-# print("ตำแหน่งของ row ที่มีค่าเป็น 'กระบี่' คือ:", row_index)
-print(dfs)
+    fig = px.scatter_mapbox(
+        df_filtered,
+        lat="latitude",
+        lon="longitude",
+        hover_name="schools_province",
+        hover_data={"totalstd": True, "totalmale": True, "totalfemale": True, "latitude": False, "longitude": False},
+        size="totalstd",
+        color="totalstd",
+        # color_continuous_scale=px.colors.cyclical.IceFire,
+        size_max=15,
+        zoom=5,
+        mapbox_style="carto-positron"
+    )
+    
+    return fig
 
 # Dash app
-app = dash.Dash()
+app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
+
 app.layout = html.Div([
-    html.H1(children='Title of Dash App', style={'textAlign':'center'}),
-    dcc.Dropdown(dfs, 'สงขลา', id='dropdown-selection'),
-    # dcc.Graph(id='graph-content')
-    dcc.Graph(id='map', figure=fig),
-    dcc.Graph(figure={'data': [
-            {'x': [1], 'y': df['totalmale'], 'type': 'bar', 'name': 'นักเรียนชาย'},
-            {'x': [1], 'y': df['totalfemale'], 'type': 'bar', 'name': 'นักเรียนหญิง'},],
-            'layout': {'title': 'จำนวนนักเรียน หญิงและชาย ของเเต่ละจังหวัด'}})
+    html.H1(children='Dash App Shows the number of students who graduated in 2023.', style={'textAlign':'center'}),
+    dcc.Dropdown(df['schools_province'].unique(), 'สงขลา', id='dropdown-selection'),
+    dcc.Graph(id='map'),
+    html.Div([
+        html.Div([dcc.Graph(id='bar-graph')]),
+        html.Div([dcc.Graph(id='pie-graph')])
+    ], style={'display': 'flex', 'flexDirection': 'row'}
+    )
 ])
+
+@app.callback(
+    Output('map', 'figure'),
+    Output('bar-graph', 'figure'),
+    Output('pie-graph', 'figure'),
+    [Input('dropdown-selection', 'value')]
+)
+def update_graph(selected_province):
+    # Update map
+    map_fig = create_map(selected_province)
+    
+    # Filter data for the selected province
+    df_filtered = df[df['schools_province'] == selected_province]
+    
+    # Create bar graph
+    bar_fig = px.bar(
+        df_filtered,
+        x='schools_province',
+        y=['totalstd', 'totalmale', 'totalfemale'],
+        barmode='group',
+        labels={
+            'value': 'Number of Students', 
+            'variable': 'Category',
+            'totalstd': 'จำนวนนักเรียนทั้งหมด',
+            'totalmale': 'จำนวนนักเรียนชาย',
+            'totalfemale': 'จำนวนนักเรียนหญิง',}
+    )
+
+    # Prepare data for pie chart
+    selected_province_data = df[df['schools_province'] == selected_province]['totalstd'].sum()
+    other_provinces_data = df[df['schools_province'] != selected_province]['totalstd'].sum()
+
+    pie_data = pd.DataFrame({
+        'Province': [selected_province, 'จังหวัดอื่นๆ'],
+        'Total Students': [selected_province_data, other_provinces_data]
+    })
+
+    # Create pie chart
+    pie_fig = px.pie(
+        pie_data,
+        names='Province',
+        values='Total Students'
+    )
+    pie_fig.update_layout(
+        title={
+            'text': f"{selected_province} - จังหวัดอื่นๆ",
+            'x': 0.5,
+            'xanchor': 'center'
+        }
+    )
+    
+    return map_fig, bar_fig, pie_fig
 
 if __name__ == '__main__':
     app.run_server(debug=True)
