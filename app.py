@@ -122,7 +122,7 @@ app = dash.Dash(external_stylesheets=[dbc.themes.BOOTSTRAP])
 
 app.layout = html.Div([
     html.H1(children=''),
-    html.H1(children='Dash App Shows the number of students who graduated in 2023.', style={'textAlign':'center', 'marginBottom': '40px'}),
+    html.H1(children='จำนวนนักเรียนในเเต่ละจังหวัดที่จบการศึกษาในปีการศึกษา 66', style={'textAlign':'center', 'marginBottom': '40px'}),
         html.Div(
         dcc.Dropdown(df['schools_province'].unique(),'สงขลา', id='dropdown-selection',style={'width': '300px'}),style={'display': 'flex', 'justifyContent': 'center', 'marginBottom': '20px'}),
     dcc.Graph(id='map'),
